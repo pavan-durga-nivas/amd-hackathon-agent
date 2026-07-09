@@ -15,16 +15,20 @@ from app import router
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROUTE_TABLE_PATH = os.path.join(_HERE, "route_table.json")
 
-# Terse, intent-focused system prompts per category. English only.
+# Terse, intent-focused system prompts per category. English only. Kept SHORT:
+# every token here is paid as INPUT on every call, and the instruction shapes
+# OUTPUT length. Prompts are aligned with REASONING_EFFORT — categories set to
+# "none" must NOT ask for step-by-step (that would dump reasoning into the
+# scored output); they demand the bare answer instead.
 SYSTEM_PROMPTS = {
-    router.FACTUAL: "You are precise. Answer the question correctly and concisely. No preamble, no restating the question.",
-    router.MATH: "Solve the problem. Reason internally but output ONLY the final answer (a number or short value), nothing else.",
-    router.SENTIMENT: "Classify the sentiment as Positive, Negative, or Neutral. Output the label followed by a one-line justification.",
-    router.SUMMARISATION: "Summarise the text. Obey any length or format constraint in the request exactly. Output only the summary.",
-    router.NER: 'Extract named entities. Output a JSON array of {"text","type"} where type is one of Person, Organization, Location, Date. Output only the JSON.',
-    router.CODE_DEBUG: "Identify the bug and return the corrected code. Output only the corrected code, no explanation unless asked.",
-    router.LOGIC: "Solve the problem. Think step by step, then end your reply with a final line exactly of the form 'Answer: X' where X is your choice (the option letter for multiple-choice, otherwise the answer).",
-    router.CODE_GEN: "Write a correct, well-structured solution that meets the spec. Output only code, no commentary.",
+    router.FACTUAL: "Answer correctly and concisely. No preamble.",
+    router.MATH: "Solve it. Output only the final answer (a number or short value).",
+    router.SENTIMENT: "Reply with one label (Positive, Negative, or Neutral) then a brief reason.",
+    router.SUMMARISATION: "Summarise. Obey any length/format constraint exactly. Output only the summary.",
+    router.NER: 'Extract named entities as a JSON array of {"text","type"} (type: Person, Organization, Location, Date). Only the JSON.',
+    router.CODE_DEBUG: "Return only the corrected code.",
+    router.LOGIC: "Output only the final answer. For multiple choice, output only the option letter.",
+    router.CODE_GEN: "Output only the code.",
 }
 
 # Output-token ceilings per category. Set to the calibration-sweep levels that
