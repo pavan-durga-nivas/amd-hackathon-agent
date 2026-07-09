@@ -56,10 +56,10 @@ async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
     task_id = task.get("task_id")
     prompt = task.get("prompt", "")
     category = router.detect_category(prompt)
-    primary = config.resolve_model(category, route_table, allowed_models,
-                                   input_tokens=router.estimate_tokens(prompt))
-    # primary first, then one fallback model for robustness (e.g. server 500s)
-    candidates = [primary] + config.fallback_models(primary, allowed_models, k=1)
+    # Capability-first ordered picks from ALLOWED_MODELS: primary + one fallback
+    # (a second capable model for robustness against 500s/empty replies).
+    candidates = config.candidate_models(
+        category, allowed_models, input_tokens=router.estimate_tokens(prompt))[:2]
 
     # Per-task wall deadline: the whole task (all attempts) must fit under the 30s
     # per-request limit, so retries can't accumulate past it.
