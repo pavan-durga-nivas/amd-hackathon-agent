@@ -32,7 +32,7 @@ SYSTEM_PROMPTS = {
 # raising these prevents truncation without inflating tokens on easy tasks.
 MAX_TOKENS = {
     router.FACTUAL: 400,
-    router.MATH: 512,
+    router.MATH: 768,
     router.SENTIMENT: 300,
     router.SUMMARISATION: 400,
     router.NER: 400,
@@ -46,6 +46,23 @@ TEMPERATURE = {
     router.FACTUAL: 0.0, router.MATH: 0.0, router.SENTIMENT: 0.0,
     router.SUMMARISATION: 0.2, router.NER: 0.0, router.CODE_DEBUG: 0.0,
     router.LOGIC: 0.0, router.CODE_GEN: 0.1,
+}
+
+# Reasoning-effort per category (for reasoning models like minimax-m3).
+# "none" => answer DIRECTLY (no internal <think>): cheaper and avoids the failure
+# where the model spends the whole token budget reasoning and returns EMPTY
+# content. "" (empty) => don't send the param => natural chain-of-thought, which
+# MATH genuinely needs (GSM8K is multi-step: none drops it 96%->48%). Everything
+# else is better/cheaper direct: logic 40%->68%, factual/ner flat but leaner.
+REASONING_EFFORT = {
+    router.FACTUAL: "none",
+    router.MATH: "",          # natural CoT — multi-step arithmetic needs it
+    router.SENTIMENT: "none",
+    router.SUMMARISATION: "none",
+    router.NER: "none",
+    router.CODE_DEBUG: "",     # code model; leave reasoning to the model
+    router.LOGIC: "none",
+    router.CODE_GEN: "",
 }
 
 _PREFIX = "accounts/fireworks/models/"

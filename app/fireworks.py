@@ -47,25 +47,49 @@ class FireworksClient:
 
     async def complete(self, model: str, system: str, user: str,
                        max_tokens: int, temperature: float,
-                       timeout: float):
+                       timeout: float, reasoning_effort: str = "none"):
         """One chat completion. Records tokens on the meter and also returns
         per-call usage. Returns (text, prompt_tokens, completion_tokens).
-        Raises on failure/timeout."""
-        resp = await asyncio.wait_for(
-            self._client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature,
-            ),
-            timeout=timeout,
-        )
+        Raises on failure/timeout.
+
+        reasoning_effort="none" tells reasoning models (e.g. minimax-m3) to answer
+        DIRECTLY instead of spending the whole token budget on an internal <think>
+        block — which otherwise truncates to EMPTY content and both fails the
+        accuracy gate and wastes tokens. Models that don't support the parameter
+        are retried once without it."""
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+
+        async def _call(extra):
+            resp = await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=model, messages=messages,
+                    max_tokens=max_tokens, temperature=temperature, **extra),
+                timeout=timeout,
+            )
+            return resp
+
+        extra = {"extra_body": {"reasoning_effort": reasoning_effort}} if reasoning_effort else {}
+        try:
+            resp = await _call(extra)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            raise
+        except Exception:  # noqa: BLE001 - model may reject reasoning_effort; retry plain
+            if not extra:
+                raise
+            resp = await _call({})
+
         usage = getattr(resp, "usage", None)
         ptok = getattr(usage, "prompt_tokens", 0) if usage else 0
         ctok = getattr(usage, "completion_tokens", 0) if usage else 0
         self._meter.add(ptok, ctok)
-        text = (resp.choices[0].message.content or "").strip()
+        msg = resp.choices[0].message
+        text = (msg.content or "").strip()
+        # If a reasoning model still returned empty content but exposed its
+        # reasoning channel, fall back to that so we never emit a blank answer.
+        if not text:
+            text = (getattr(msg, "reasoning_content", None)
+                    or getattr(msg, "reasoning", None) or "").strip()
         return text, ptok, ctok

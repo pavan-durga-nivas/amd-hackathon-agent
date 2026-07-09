@@ -65,7 +65,8 @@ async def run_agent(tasks, allowed, route_table, client, force_model=None):
                 ans, p, c = await client.complete(
                     model=model, system=config.SYSTEM_PROMPTS[cat], user=prompt,
                     max_tokens=config.MAX_TOKENS[cat], temperature=config.TEMPERATURE[cat],
-                    timeout=28.0)
+                    timeout=28.0,
+                    reasoning_effort=config.REASONING_EFFORT.get(cat, "none"))
                 rec.update(answer=ans, ptok=p, ctok=c)
             except Exception as e:  # noqa: BLE001
                 rec["err"] = str(e)[:100]

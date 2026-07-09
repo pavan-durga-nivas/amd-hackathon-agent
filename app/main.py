@@ -79,6 +79,7 @@ async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
                 max_tokens=config.MAX_TOKENS[category],
                 temperature=config.TEMPERATURE[category],
                 timeout=timeout,
+                reasoning_effort=config.REASONING_EFFORT.get(category, "none"),
             )
             if answer and answer.strip():
                 return {"task_id": task_id, "answer": answer}
