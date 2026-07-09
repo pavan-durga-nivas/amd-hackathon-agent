@@ -24,7 +24,12 @@ OUTPUT_PATH = os.environ.get("OUTPUT_PATH", "/output/results.json")
 
 # Time budgets (seconds). Rules: total <=10 min, per-request <30s.
 GLOBAL_DEADLINE = float(os.environ.get("GLOBAL_DEADLINE_S", "555"))  # ~9m15s safety margin
-PER_TASK_TIMEOUT = float(os.environ.get("PER_TASK_TIMEOUT_S", "28"))
+# Whole-task wall budget (primary + any fallback COMBINED) — kept safely under the
+# 30s per-request hard limit so a retry can never push one task past it.
+PER_TASK_BUDGET = float(os.environ.get("PER_TASK_BUDGET_S", "28"))
+# Cap on any single model call, so the primary can't consume the whole budget and
+# leave no room for a fallback attempt.
+PER_ATTEMPT_TIMEOUT = float(os.environ.get("PER_ATTEMPT_TIMEOUT_S", "22"))
 MAX_CONCURRENCY = int(os.environ.get("MAX_CONCURRENCY", "8"))
 
 
@@ -56,11 +61,16 @@ async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
     # primary first, then one fallback model for robustness (e.g. server 500s)
     candidates = [primary] + config.fallback_models(primary, allowed_models, k=1)
 
+    # Per-task wall deadline: the whole task (all attempts) must fit under the 30s
+    # per-request limit, so retries can't accumulate past it.
+    task_deadline = time.monotonic() + PER_TASK_BUDGET
     for model in candidates:
-        remaining = deadline - time.monotonic()
-        if remaining <= 1.0:
+        now = time.monotonic()
+        # Bound this attempt by whichever runs out first: the per-attempt cap, the
+        # remaining per-task budget, or the global deadline.
+        timeout = min(PER_ATTEMPT_TIMEOUT, task_deadline - now, deadline - now)
+        if timeout <= 1.0:  # no room left for a meaningful attempt
             break
-        timeout = max(1.0, min(PER_TASK_TIMEOUT, remaining))
         try:
             answer, _ptok, _ctok = await client.complete(
                 model=model,
