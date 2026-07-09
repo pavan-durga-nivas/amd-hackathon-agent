@@ -1,0 +1,10 @@
+[
+  { "task_id": "t1", "prompt": "In one sentence, explain what photosynthesis is." },
+  { "task_id": "t2", "prompt": "A shirt costs $40. It is discounted by 25%, then a 10% sales tax is added to the discounted price. What is the final price?" },
+  { "task_id": "t3", "prompt": "Classify the sentiment of this review and justify briefly: 'The battery life is amazing but the camera is disappointing.'" },
+  { "task_id": "t4", "prompt": "Summarise the following text in one sentence: 'The city council approved a new plan to expand public transit, adding three bus routes and extending service hours on weekends to reduce traffic congestion downtown.'" },
+  { "task_id": "t5", "prompt": "Extract the named entities from: 'Satya Nadella, CEO of Microsoft, visited Paris on March 3, 2024.'" },
+  { "task_id": "t6", "prompt": "There is a bug in this Python function. Fix it:\n```python\ndef factorial(n):\n    result = 0\n    for i in range(1, n+1):\n        result *= i\n    return result\n```" },
+  { "task_id": "t7", "prompt": "Three friends—Ana, Ben, and Cara—each have a different pet: cat, dog, fish. Ana does not have the dog. Ben has the fish. Who has the cat?" },
+  { "task_id": "t8", "prompt": "Write a Python function `is_palindrome(s)` that returns True if the string is a palindrome, ignoring case and non-alphanumeric characters." }
+]

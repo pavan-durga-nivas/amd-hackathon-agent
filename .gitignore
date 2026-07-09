@@ -1,0 +1,16 @@
+# Secrets — never commit the real API key
+.env
+.env.local
+.env.*.local
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# OS / editor
+.DS_Store
+
+# Claude local settings
+.claude/

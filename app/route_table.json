@@ -1,0 +1,10 @@
+{
+  "factual": "accounts/fireworks/models/deepseek-v4-flash",
+  "math": "accounts/fireworks/models/kimi-k2p7-code",
+  "sentiment": "accounts/fireworks/models/deepseek-v4-flash",
+  "summarisation": "accounts/fireworks/models/deepseek-v4-flash",
+  "ner": "accounts/fireworks/models/deepseek-v4-flash",
+  "code_debug": "accounts/fireworks/models/kimi-k2p7-code",
+  "logic": "accounts/fireworks/models/kimi-k2p7-code",
+  "code_gen": "accounts/fireworks/models/deepseek-v4-flash"
+}

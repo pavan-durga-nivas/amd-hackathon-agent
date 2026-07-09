@@ -1,0 +1,8 @@
+.env
+.env.*
+eval/
+*.md
+.git/
+__pycache__/
+*.pyc
+.claude/
