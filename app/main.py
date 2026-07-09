@@ -51,7 +51,8 @@ async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
     task_id = task.get("task_id")
     prompt = task.get("prompt", "")
     category = router.detect_category(prompt)
-    primary = config.resolve_model(category, route_table, allowed_models)
+    primary = config.resolve_model(category, route_table, allowed_models,
+                                   input_tokens=router.estimate_tokens(prompt))
     # primary first, then one fallback model for robustness (e.g. server 500s)
     candidates = [primary] + config.fallback_models(primary, allowed_models, k=1)
 

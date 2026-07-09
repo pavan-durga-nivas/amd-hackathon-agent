@@ -56,7 +56,8 @@ async def run_agent(tasks, allowed, route_table, client, force_model=None):
         async with sem:
             prompt = t["prompt"]
             cat = router.detect_category(prompt)
-            model = force_model or config.resolve_model(cat, route_table, allowed)
+            model = force_model or config.resolve_model(
+                cat, route_table, allowed, input_tokens=router.estimate_tokens(prompt))
             rec = {"detected": cat, "model": model, "answer": "", "ptok": 0, "ctok": 0,
                    "latency": 0.0, "err": None}
             t0 = time.monotonic()

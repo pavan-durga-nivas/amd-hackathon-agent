@@ -50,6 +50,27 @@ TEMPERATURE = {
 
 _PREFIX = "accounts/fireworks/models/"
 
+# Context windows (tokens) for the second routing axis: never send an input that
+# can't fit. Unknown models default to a conservative-but-large window (modern
+# Fireworks models are 128k+); the gate only escalates when an input *provably*
+# won't fit the picked model, so a wrong-small default can't cause false escalations.
+_DEFAULT_CONTEXT = 131072
+_CONTEXT_WINDOW = {
+    "deepseek-v4-flash": 131072,
+    "deepseek-v4-pro": 131072,
+    "kimi-k2p7-code": 131072,
+    "kimi-k2p6": 131072,
+    "gpt-oss-120b": 131072,
+    "glm-5p1": 131072,
+    "glm-5p2": 131072,
+}
+
+
+def context_window(model: str) -> int:
+    """Context window for a model id (short or full), default large if unknown."""
+    short = model.split("/")[-1]
+    return _CONTEXT_WINDOW.get(short, _DEFAULT_CONTEXT)
+
 # Calibrated cheapest-sufficient model per category (measured on the dev set;
 # see eval/calibrate.py). Concrete IDs — route_table.json overrides these.
 _DEFAULT_ROUTE_TABLE = {
@@ -83,19 +104,31 @@ def load_route_table() -> dict:
         return dict(_DEFAULT_ROUTE_TABLE)
 
 
-def resolve_model(category: str, route_table: dict, allowed: list) -> str:
+def resolve_model(category: str, route_table: dict, allowed: list,
+                  input_tokens: int = 0) -> str:
     """Primary model for a category: the calibrated pick if it's in ALLOWED_MODELS,
     otherwise the leanest preferred model that IS available, else the first allowed.
-    Keeps us robust if launch-day ALLOWED_MODELS differs from our dev pool."""
+    Keeps us robust if launch-day ALLOWED_MODELS differs from our dev pool.
+
+    Second routing axis (input size): if the input plus this category's output
+    budget can't fit the chosen model's context window, escalate to the
+    largest-context available model so the request never gets truncated at the
+    context boundary. On our dev/bench inputs this never fires (all <2k tokens),
+    but it's cheap insurance against an unusually large real task."""
     if not allowed:
         raise ValueError("ALLOWED_MODELS is empty")
     primary = _full(route_table.get(category, ""))
-    if primary in allowed:
-        return primary
-    for name in _PREFERRED_ORDER:
-        if _full(name) in allowed:
-            return _full(name)
-    return allowed[0]
+    if primary not in allowed:
+        primary = next((_full(n) for n in _PREFERRED_ORDER if _full(n) in allowed),
+                       allowed[0])
+
+    # Hard context-window gate. Reserve the category's output budget + a margin.
+    needed = input_tokens + MAX_TOKENS.get(category, 512) + 256
+    if needed > context_window(primary):
+        roomiest = max(allowed, key=context_window)
+        if context_window(roomiest) > context_window(primary):
+            return roomiest
+    return primary
 
 
 def fallback_models(primary: str, allowed: list, k: int = 1) -> list:

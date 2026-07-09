@@ -28,7 +28,10 @@ _CODE_FENCE = re.compile(r"```|\bdef \w+\(|\bclass \w+|\breturn\b|;\s*$|=>|\(\)\
 _MATH_HINT = re.compile(
     r"\b(calculate|compute|how many|how much|percent|percentage|average|"
     r"projection|profit|interest\b|discount|\btax\b|\bsum of\b)\b|\d+\s*%|"
-    r"\$\s*\d|\d+\s*[+\-*/x]\s*\d", re.I)
+    r"\$\s*\d|"
+    # arithmetic expressions: +,*,/,x may be tight (3+4); subtraction must have
+    # surrounding whitespace so a year range ("1976-81") isn't read as 1976 minus 81.
+    r"\d+\s*[+*x×]\s*\d|\d+\s*/\s*\d|\d+\s+[-−]\s+\d", re.I)
 # Summary intent = an explicit condense verb, NOT a mere length constraint.
 _SUMMARY_HINT = re.compile(r"\b(summ?aris[ez]e?|summ?ary|tl;?dr|condense|shorten)\b", re.I)
 _SENTIMENT_HINT = re.compile(r"\b(sentiment|positive or negative|how (do(es)?|did) .{0,20}feel|"
@@ -47,6 +50,14 @@ _LOGIC_HINT = re.compile(r"\b(puzzle|deduce|deduction|riddle|constraint)\b|logic
 # lines). Deductive-reasoning benchmarks (LogiQA etc.) are posed this way and
 # carry no keyword cue, so they'd otherwise fall through to the factual default.
 _MCQ_OPTION = re.compile(r"(?m)^\s*\(?([A-E])[.)]\s+\S")
+
+
+def estimate_tokens(text: str) -> int:
+    """Cheap, local, dependency-free token estimate (~1 token per 4 chars, with
+    a per-word floor). Used only as the second routing axis (context-window fit);
+    never needs to be exact, just safely in the right ballpark."""
+    text = text or ""
+    return max(len(text) // 4, len(text.split()))
 
 
 def detect_category(prompt: str) -> str:
