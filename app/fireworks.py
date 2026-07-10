@@ -35,9 +35,12 @@ class TokenMeter:
 class FireworksClient:
     """Async wrapper around the OpenAI-compatible Fireworks endpoint."""
 
-    def __init__(self, meter: TokenMeter):
-        api_key = os.environ.get("FIREWORKS_API_KEY")
-        base_url = os.environ.get("FIREWORKS_BASE_URL")
+    def __init__(self, meter: TokenMeter, base_url: str = None, api_key: str = None):
+        # base_url/api_key default to the Fireworks env; pass them to point the
+        # AGENT at a different OpenAI-compatible endpoint (e.g. a local
+        # llama-server) while the judge stays on real Fireworks.
+        api_key = api_key or os.environ.get("FIREWORKS_API_KEY")
+        base_url = base_url or os.environ.get("FIREWORKS_BASE_URL")
         if not api_key:
             raise RuntimeError("FIREWORKS_API_KEY not set in environment")
         if not base_url:

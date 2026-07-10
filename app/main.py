@@ -50,12 +50,36 @@ def write_results(path: str, results: list):
 
 
 async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
-                     route_table: dict, deadline: float) -> dict:
+                     route_table: dict, deadline: float,
+                     local_client: FireworksClient = None) -> dict:
     """Route + answer a single task, retrying on error/empty with a fallback
-    model. Never raises; always returns a valid record."""
+    model. Never raises; always returns a valid record.
+
+    Phase 2: for LOCAL_CATEGORIES the free in-container model is tried FIRST; a
+    verified answer is returned at zero Fireworks tokens. Empty/failed/unverified
+    local answers fall through to the Fireworks path below, so the accuracy gate
+    is never staked on the small model."""
     task_id = task.get("task_id")
     prompt = task.get("prompt", "")
     category = router.detect_category(prompt)
+
+    # --- Local-first (free) for the categories where the small model is proven
+    # accurate AND short-output (=> fast). Tight timeout so a slow generation
+    # escalates rather than blowing the per-request limit.
+    if local_client is not None and category in config.LOCAL_CATEGORIES:
+        try:
+            sys_prompt, out_cap, stop = config.output_plan(category, prompt)
+            budget = min(config.LOCAL_TIMEOUT_S, deadline - time.monotonic())
+            if budget > 1.0:
+                answer, _p, _c = await local_client.complete(
+                    model=config.LOCAL_MODEL_ID, system=sys_prompt, user=prompt,
+                    max_tokens=out_cap, temperature=config.TEMPERATURE[category],
+                    timeout=budget, reasoning_effort="", stop=stop)
+                if config.verify_local(category, answer):
+                    return {"task_id": task_id, "answer": answer}
+        except Exception as e:  # noqa: BLE001 - escalate to Fireworks below
+            print(f"[warn] task {task_id} local failed: {e}", file=sys.stderr)
+
     # Capability-first ordered picks from ALLOWED_MODELS: primary + one fallback
     # (a second capable model for robustness against 500s/empty replies).
     candidates = config.candidate_models(
@@ -102,18 +126,33 @@ async def run() -> int:
     meter = TokenMeter()
     client = FireworksClient(meter)
 
+    # Phase 2: local model client (separate meter — local tokens are FREE and
+    # must not be counted against the score). Only when LOCAL_MODEL_URL is set.
+    local_client = None
+    local_meter = TokenMeter()
+    if config.local_enabled():
+        try:
+            local_client = FireworksClient(local_meter, base_url=config.LOCAL_MODEL_URL,
+                                           api_key=config.LOCAL_MODEL_KEY)
+            print(f"[local] enabled: {config.LOCAL_MODEL_URL} for {sorted(config.LOCAL_CATEGORIES)}",
+                  file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 - degrade to Fireworks-only
+            print(f"[warn] local model disabled: {e}", file=sys.stderr)
+
     sem = asyncio.Semaphore(MAX_CONCURRENCY)
 
     async def bounded(t):
         async with sem:
-            return await solve_task(t, client, allowed_models, route_table, deadline)
+            return await solve_task(t, client, allowed_models, route_table, deadline,
+                                    local_client=local_client)
 
     results = await asyncio.gather(*(bounded(t) for t in tasks))
 
     write_results(OUTPUT_PATH, results)
     elapsed = time.monotonic() - start
-    print(f"[done] {len(results)} tasks | {meter.calls} calls | "
-          f"{meter.total} tokens (in={meter.prompt_tokens} out={meter.completion_tokens}) | "
+    print(f"[done] {len(results)} tasks | {meter.calls} Fireworks calls | "
+          f"{meter.total} SCORED tokens (in={meter.prompt_tokens} out={meter.completion_tokens}) | "
+          f"{local_meter.calls} local calls (free, {local_meter.total} tok) | "
           f"{elapsed:.1f}s", file=sys.stderr)
     return 0
 

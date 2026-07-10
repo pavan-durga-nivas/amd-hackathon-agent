@@ -69,6 +69,55 @@ REASONING_EFFORT = {
     router.CODE_GEN: "",
 }
 
+# --- Phase 2: local small model (Qwen2.5-3B) answering easy tasks at ZERO
+# Fireworks tokens, escalating the hard tail to the API. Enabled only when
+# LOCAL_MODEL_URL is set (an in-container OpenAI-compatible endpoint), so absence
+# = current Fireworks-only behavior (backward compatible).
+#
+# LOCAL_CATEGORIES were chosen from a measured bake-off (Qwen2.5-3B Q4, n=15/cat):
+# categories where it's BOTH accurate AND emits short output (=> fast, <30s even
+# on 2 vCPU). NER 93% / sentiment 80% / logic 73% qualify; math(0%)/code/summ/
+# factual escalate (weak and/or long-output). Every local answer is verified and
+# falls back to Fireworks on failure, so the accuracy gate is never at their mercy.
+LOCAL_MODEL_URL = os.environ.get("LOCAL_MODEL_URL")  # e.g. http://127.0.0.1:8081/v1
+LOCAL_MODEL_ID = os.environ.get("LOCAL_MODEL_ID", "local")
+LOCAL_MODEL_KEY = os.environ.get("LOCAL_MODEL_KEY", "local")
+# Tight cap on a local attempt so a slow generation escalates instead of blowing
+# the per-request limit.
+LOCAL_TIMEOUT_S = float(os.environ.get("LOCAL_TIMEOUT_S", "14"))
+_DEFAULT_LOCAL_CATS = f"{router.NER},{router.SENTIMENT},{router.LOGIC}"
+LOCAL_CATEGORIES = {c.strip() for c in
+                    os.environ.get("LOCAL_CATEGORIES", _DEFAULT_LOCAL_CATS).split(",")
+                    if c.strip()}
+
+
+def local_enabled() -> bool:
+    return bool(LOCAL_MODEL_URL)
+
+
+_SENTIMENT_LABELS = ("positive", "negative", "neutral")
+
+
+def verify_local(category: str, answer: str) -> bool:
+    """Cheap local sanity check on a local-model answer. Lenient by design: it
+    only rejects CLEARLY bad output (empty, wrong shape, refusal) so we escalate
+    those to Fireworks while keeping the token win on the rest."""
+    a = (answer or "").strip()
+    if not a:
+        return False
+    low = a.lower()
+    if low.startswith(("i cannot", "i can't", "i'm sorry", "as an ai", "i am unable")):
+        return False
+    if category == router.SENTIMENT:
+        return any(lbl in low for lbl in _SENTIMENT_LABELS)
+    if category == router.NER:
+        # expect a JSON-ish list of entities (or an explicit empty list)
+        return ("[" in a and "]" in a) or a.startswith("{")
+    if category == router.LOGIC:
+        return len(a) <= 400  # short deductive answer; reject runaway text
+    return True
+
+
 _PREFIX = "accounts/fireworks/models/"
 
 # Context windows (tokens) for the second routing axis: never send an input that

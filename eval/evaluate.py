@@ -96,6 +96,10 @@ def main():
                     help="force this model for every task (A/B a route override); "
                          "short name ok, e.g. deepseek-v4-flash")
     ap.add_argument("--show", action="store_true", help="print each answer")
+    ap.add_argument("--agent-base-url", default=None,
+                    help="OpenAI-compatible endpoint for the AGENT (e.g. a local "
+                         "llama-server http://127.0.0.1:8080/v1); judge still uses Fireworks")
+    ap.add_argument("--agent-key", default="local", help="api key for --agent-base-url")
     args = ap.parse_args()
 
     load_dotenv()
@@ -115,7 +119,11 @@ def main():
     route_table = config.load_route_table()
 
     meter = TokenMeter()
-    client = FireworksClient(meter)
+    if args.agent_base_url:
+        client = FireworksClient(meter, base_url=args.agent_base_url, api_key=args.agent_key)
+        print(f"agent endpoint: {args.agent_base_url} (judge stays on Fireworks)")
+    else:
+        client = FireworksClient(meter)
 
     # Judge client (separate, sync, not counted in agent tokens).
     judge_client = None
@@ -129,8 +137,12 @@ def main():
 
     force_model = None
     if args.model:
-        force_model = args.model if args.model.startswith("accounts/") else \
-            "accounts/fireworks/models/" + args.model
+        # For a local/non-Fireworks endpoint, use the id verbatim (don't prepend
+        # the Fireworks model path — the local server serves one named model).
+        if args.agent_base_url or args.model.startswith("accounts/"):
+            force_model = args.model
+        else:
+            force_model = "accounts/fireworks/models/" + args.model
         print(f"model override: every task -> {force_model}")
 
     t0 = time.monotonic()
