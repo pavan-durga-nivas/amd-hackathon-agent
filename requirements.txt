@@ -1,1 +1,6 @@
 openai>=1.30.0
+# Phase 2: in-container local model (Qwen2.5-3B GGUF) served via an
+# OpenAI-compatible endpoint. [server] pulls fastapi/uvicorn/sse-starlette.
+# CPU prebuilt wheels come from the extra index in the Dockerfile.
+llama-cpp-python[server]>=0.3.2
+huggingface_hub>=0.24.0
