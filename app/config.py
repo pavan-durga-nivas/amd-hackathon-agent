@@ -10,7 +10,7 @@ Phase-2 calibration replaces it with measured cheapest-sufficient models.
 import json
 import os
 
-from app import router
+from app import profiles, router
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROUTE_TABLE_PATH = os.path.join(_HERE, "route_table.json")
@@ -193,3 +193,27 @@ def fallback_models(primary: str, allowed: list, k: int = 1, category: str = "")
     """Ordered fallbacks (excluding primary) for retry-on-error, capability-first."""
     ordered = [m for m in candidate_models(category, allowed) if m != primary]
     return ordered[:k]
+
+
+# --- Profile-aware output plan (call this instead of the raw dicts) ---
+# Layers the active AGENT_PROFILE's knobs over the baselines above so token
+# strategy is dialable per Docker build. Crucially, it respects a length the
+# TASK itself states: our terseness cap is skipped (and any lowered output
+# ceiling restored) when the prompt requests a specific length/format, so we
+# never get judged-wrong for ignoring a requested word/sentence count.
+
+def output_plan(category: str, prompt: str = ""):
+    """Return (system_prompt, max_tokens, stop) for one task under the profile."""
+    sys = profiles.system_override(category) or SYSTEM_PROMPTS[category]
+    mt = profiles.max_tokens_override(category)
+    mt = mt if mt is not None else MAX_TOKENS[category]
+    hint = profiles.length_hint(category)
+
+    if router.has_length_constraint(prompt):
+        # Task dictates its own length: don't nudge shorter, and never let a
+        # profile ceiling truncate a legitimately longer required answer.
+        mt = max(mt, MAX_TOKENS[category])
+    elif hint:
+        sys = sys + hint
+
+    return sys, mt, profiles.stop_sequences(category)

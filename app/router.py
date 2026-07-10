@@ -60,6 +60,21 @@ def estimate_tokens(text: str) -> int:
     return max(len(text) // 4, len(text.split()))
 
 
+# A task that states its OWN output length ("in 100 words", "one sentence",
+# "3 bullet points", "briefly") — when present we must NOT override it with our
+# terseness cap, or the judge fails us for ignoring the requested length.
+_LENGTH_CONSTRAINT = re.compile(
+    r"\b(in|within|under|at most|no more than|max(?:imum)?|about|around)\s+\d+\s*"
+    r"(words?|sentences?|characters?|chars?|lines?|bullets?|paragraphs?)\b|"
+    r"\b(one|two|three|single)\s+(word|sentence|line|paragraph)\b|"
+    r"\b\d+\s*[-–]\s*\d+\s*(words?|sentences?)\b|\bword limit\b", re.I)
+
+
+def has_length_constraint(prompt: str) -> bool:
+    """True if the task itself specifies an output length/format budget."""
+    return bool(_LENGTH_CONSTRAINT.search(prompt or ""))
+
+
 def detect_category(prompt: str) -> str:
     """Return the best-guess category for a task prompt (local, free).
 

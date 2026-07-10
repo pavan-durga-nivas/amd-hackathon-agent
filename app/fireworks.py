@@ -47,7 +47,8 @@ class FireworksClient:
 
     async def complete(self, model: str, system: str, user: str,
                        max_tokens: int, temperature: float,
-                       timeout: float, reasoning_effort: str = "none"):
+                       timeout: float, reasoning_effort: str = "none",
+                       stop=None):
         """One chat completion. Records tokens on the meter and also returns
         per-call usage. Returns (text, prompt_tokens, completion_tokens).
         Raises on failure/timeout.
@@ -62,11 +63,14 @@ class FireworksClient:
             {"role": "user", "content": user},
         ]
 
+        stop_kw = {"stop": stop} if stop else {}
+
         async def _call(extra):
             resp = await asyncio.wait_for(
                 self._client.chat.completions.create(
                     model=model, messages=messages,
-                    max_tokens=max_tokens, temperature=temperature, **extra),
+                    max_tokens=max_tokens, temperature=temperature,
+                    **stop_kw, **extra),
                 timeout=timeout,
             )
             return resp

@@ -72,14 +72,16 @@ async def solve_task(task: dict, client: FireworksClient, allowed_models: list,
         if timeout <= 1.0:  # no room left for a meaningful attempt
             break
         try:
+            sys_prompt, out_cap, stop = config.output_plan(category, prompt)
             answer, _ptok, _ctok = await client.complete(
                 model=model,
-                system=config.SYSTEM_PROMPTS[category],
+                system=sys_prompt,
                 user=prompt,
-                max_tokens=config.MAX_TOKENS[category],
+                max_tokens=out_cap,
                 temperature=config.TEMPERATURE[category],
                 timeout=timeout,
                 reasoning_effort=config.REASONING_EFFORT.get(category, "none"),
+                stop=stop,
             )
             if answer and answer.strip():
                 return {"task_id": task_id, "answer": answer}

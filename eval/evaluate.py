@@ -62,11 +62,13 @@ async def run_agent(tasks, allowed, route_table, client, force_model=None):
                    "latency": 0.0, "err": None}
             t0 = time.monotonic()
             try:
+                sys_prompt, out_cap, stop = config.output_plan(cat, prompt)
                 ans, p, c = await client.complete(
-                    model=model, system=config.SYSTEM_PROMPTS[cat], user=prompt,
-                    max_tokens=config.MAX_TOKENS[cat], temperature=config.TEMPERATURE[cat],
+                    model=model, system=sys_prompt, user=prompt,
+                    max_tokens=out_cap, temperature=config.TEMPERATURE[cat],
                     timeout=28.0,
-                    reasoning_effort=config.REASONING_EFFORT.get(cat, "none"))
+                    reasoning_effort=config.REASONING_EFFORT.get(cat, "none"),
+                    stop=stop)
                 rec.update(answer=ans, ptok=p, ctok=c)
             except Exception as e:  # noqa: BLE001
                 rec["err"] = str(e)[:100]
