@@ -33,7 +33,10 @@ _MATH_HINT = re.compile(
     # surrounding whitespace so a year range ("1976-81") isn't read as 1976 minus 81.
     r"\d+\s*[+*x×]\s*\d|\d+\s*/\s*\d|\d+\s+[-−]\s+\d", re.I)
 # Summary intent = an explicit condense verb, NOT a mere length constraint.
-_SUMMARY_HINT = re.compile(r"\b(summ?aris[ez]e?|summ?ary|tl;?dr|condense|shorten)\b", re.I)
+# Match BOTH spellings/inflections: summarise/summarize/summarizes/summarized,
+# summary/summaries, plus tl;dr/condense/shorten/recap.
+_SUMMARY_HINT = re.compile(
+    r"\b(summ?ari[sz]e[sd]?|summ?ar(?:y|ies)|tl;?dr|condense[sd]?|shorten|recap)\b", re.I)
 _SENTIMENT_HINT = re.compile(r"\b(sentiment|positive or negative|how (do(es)?|did) .{0,20}feel|"
                              r"tone of|emotion(al)? (of|in))\b", re.I)
 _NER_HINT = re.compile(r"named entit|extract .{0,30}?(entit|names?|persons?|organi[sz]|"
